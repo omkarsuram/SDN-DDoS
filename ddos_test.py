@@ -85,21 +85,25 @@ def _handle_flowstats_received (event):
 #  dpid = event.connection.dpid
 
 def send_packet(event,packet_count,web_packet):
+  srcip_count = {}
+  for i in xrange(40000):
+    srcip_count[i] = None
+
   srcip_count[packet_count]=web_packet
       
   log.debug("list_of_ip_counts=%s",srcip_count)
+  srcip_count_tmp=srcip_count
   for i in srcip_count:
-    if srcip_count[i]>15:
+    if srcip_count[i]>100:
       log.debug("packet-rate exceeded for %s. redirect the packets.",i)
 #*******      
       for connection in core.openflow._connections.values():
 #        connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request()))
-
-        connection.send( of.ofp_flow_mod(                        
-                                       match=of.ofp_match(dl_type=0x800,nw_src=i,nw_dst="10.10.1.0/24",tp_dst=80 )))
+        connection.send( of.ofp_flow_mod(match=of.ofp_match(dl_type=0x800,nw_src=i,nw_dst="10.10.1.0/24",tp_dst=80 )))
 #*******
-      del srcip_count[i]
+      srcip_count_tmp[i]=None
       log.debug("Host %s blocked and removed from the list",i)
+  srcip_count=srcip_count_tmp
 
   
 
