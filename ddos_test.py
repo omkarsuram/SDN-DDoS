@@ -48,7 +48,7 @@ def _timer_func ():
   for connection in core.openflow._connections.values():
     connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request()))
     connection.send(of.ofp_stats_request(body=of.ofp_port_stats_request()))
-  log.debug("Sent %i flow/port stats request(s)", len(core.openflow._connections))
+#  log.debug("Sent %i flow/port stats request(s)", len(core.openflow._connections))
 
 # handler to display flow statistics received in JSON format
 # structure of event.stats is defined by ofp_flow_stats()
@@ -145,4 +145,4 @@ core.openflow.addListenerByName("PortStatsReceived",
     _handle_portstats_received) 
 
   # timer set to execute every five seconds
-Timer(10, _timer_func, recurring=True)
+Timer(1, _timer_func, recurring=True)
