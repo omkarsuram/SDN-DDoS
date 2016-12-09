@@ -86,9 +86,6 @@ def _handle_flowstats_received (event):
 
 def send_packet(event,packet_count,web_packet):
   srcip_count = {}
-  for i in xrange(40000):
-    srcip_count[i] = None
-
   srcip_count[packet_count]=web_packet
       
   log.debug("list_of_ip_counts=%s",srcip_count)
