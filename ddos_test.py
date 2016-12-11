@@ -44,6 +44,7 @@ log = core.getLogger()
 srcip_count={}
 srcip_record={}
 tmp_src_ip=None
+srcip_blocked=[]
 # handler for timer function that sends the requests to all the
 # switches connected to the controller.
 def _timer_func ():
@@ -54,9 +55,10 @@ def _timer_func ():
 
 def _timer_display():
   global tmp_src_ip
-  print "."
   if tmp_src_ip :
-    del srcip_count[tmp_src_ip]
+    srcip_count[tmp_src_ip]="Blocked"
+    print srcip_count[tmp_src_ip]
+    
     tmp_src_ip=None
   if srcip_count:
     print srcip_count
@@ -81,32 +83,41 @@ def _handle_flowstats_received (event):
       send_packet(event,str(f.match.nw_src),web_packet)
       
       
+      
 def send_packet(event,src_ip,web_packet):
   global srcip_count
-  global tmp_src_ip
-  srcip_count[src_ip]=web_packet
-  global tmp_src_ip
-  tmp_src_ip=None
-  srcip_count1=srcip_count
+  global srcip_blocked
+  skip_loop=0
+  if srcip_blocked:
+    for i in srcip_blocked:
+      if i==src_ip:
+        skip_loop=1
+    #print srcip_blocked    
+  if skip_loop==0:
+    srcip_count[src_ip]=web_packet
+    global tmp_src_ip
+    tmp_src_ip=None
+    srcip_count1=srcip_count
+        
+  #  log.debug("list_of_ip_counts=%s",srcip_count)
+    for i in srcip_count:
+      if srcip_count[i]>100:
+        tmp_src_ip=i
+        log.debug("packet-rate exceeded for %s. redirect the packets.",i)
+  #*******      
+        for connection in core.openflow._connections.values():
+  #        connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request()))
+          connection.send( of.ofp_flow_mod(match=of.ofp_match(
+            nw_proto=6,dl_type=0x800,nw_src=i,nw_dst="10.10.1.0/24",tp_dst=80 )))
+  #*******
+        log.debug("Host %s blocked and removed from the list",i)
+    if tmp_src_ip :
+      srcip_blocked.append(tmp_src_ip)
+      srcip_count[tmp_src_ip]="Blocked"
+      #print srcip_count[tmp_src_ip]
       
-#  log.debug("list_of_ip_counts=%s",srcip_count)
-  for i in srcip_count:
-    if srcip_count[i]>100:
-      tmp_src_ip=i
-      log.debug("packet-rate exceeded for %s. redirect the packets.",i)
-#*******      
-      for connection in core.openflow._connections.values():
-#        connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request()))
-        connection.send( of.ofp_flow_mod(match=of.ofp_match(
-          nw_proto=6,dl_type=0x800,nw_src=i,nw_dst="10.10.1.0/24",tp_dst=80 )))
-#*******
-      log.debug("Host %s blocked and removed from the list",i)
-      
-  if tmp_src_ip :
-    del srcip_count[tmp_src_ip]
-    tmp_src=None
-  
-  
+      tmp_src_ip=None      
+ 
   
     
 
