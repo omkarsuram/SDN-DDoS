@@ -40,67 +40,75 @@ from pox.openflow.of_json import *
 log = core.getLogger()
 
 #list to maintain the srcip and packet-count record
-srcip_count={}
 
+srcip_count={}
+srcip_record={}
+tmp_src_ip=None
 # handler for timer function that sends the requests to all the
 # switches connected to the controller.
 def _timer_func ():
+  z1234=0
   for connection in core.openflow._connections.values():
     connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request()))
     connection.send(of.ofp_stats_request(body=of.ofp_port_stats_request()))
+
+def _timer_display():
+  global tmp_src_ip
+  print "."
+  if tmp_src_ip :
+    del srcip_count[tmp_src_ip]
+    tmp_src_ip=None
+  if srcip_count:
+    print srcip_count
+    srcip_count.clear()
 #  log.debug("Sent %i flow/port stats request(s)", len(core.openflow._connections))
 
 # handler to display flow statistics received in JSON format
 # structure of event.stats is defined by ofp_flow_stats()
 def _handle_flowstats_received (event):
   stats = flow_stats_to_list(event.stats)
+#  print stats
 #  log.debug("FlowStatsReceived from %s: %s", 
  #   dpidToStr(event.connection.dpid), stats)
 
   # Get number of bytes/packets in flows for web traffic only
   web_packet = 0
   for f in event.stats:
-
     if f.match.tp_dst==80:
-      log.debug("srcip=%s",f.match.nw_src)
+#      log.debug("srcip=%s",f.match.nw_src)
 
       web_packet += f.packet_count
-      send_packet(event,f.match.nw_src,web_packet)
-#      srcip_count[f.match.nw_src]=web_packet
+      send_packet(event,str(f.match.nw_src),web_packet)
+      
+      
+def send_packet(event,src_ip,web_packet):
+  global srcip_count
+  global tmp_src_ip
+  srcip_count[src_ip]=web_packet
+  global tmp_src_ip
+  tmp_src_ip=None
+  srcip_count1=srcip_count
       
 #  log.debug("list_of_ip_counts=%s",srcip_count)
-#  for i in srcip_count:
-#    if srcip_count[i]>15:
-#      log.debug("packet-rate exceeded for %s. redirect the packets.",i)
-#      connection.send( of.ofp_flow_mod(                        
-#                                       match=of.ofp_match(dl_type=0x800,nw_dst="10.10.1.3/24",tp_dst=80 )))
-#      del srcip_count[i]
-#      log.debug("Host %s blocked and removed from the list",i)
-
-
-#    log.debug("packet_count in the list:%s",i)
-
-#  log.info("Web traffic from %s:(%s packets) ", 
-#    dpidToStr(event.connection.dpid), web_packet)
-#  dpid = event.connection.dpid
-
-def send_packet(event,packet_count,web_packet):
-  srcip_count = {}
-  srcip_count[packet_count]=web_packet
-      
-  log.debug("list_of_ip_counts=%s",srcip_count)
-  srcip_count_tmp=srcip_count
   for i in srcip_count:
     if srcip_count[i]>100:
+      tmp_src_ip=i
       log.debug("packet-rate exceeded for %s. redirect the packets.",i)
 #*******      
       for connection in core.openflow._connections.values():
 #        connection.send(of.ofp_stats_request(body=of.ofp_flow_stats_request()))
-        connection.send( of.ofp_flow_mod(match=of.ofp_match(dl_type=0x800,nw_src=i,nw_dst="10.10.1.0/24",tp_dst=80 )))
+        connection.send( of.ofp_flow_mod(match=of.ofp_match(
+          nw_proto=6,dl_type=0x800,nw_src=i,nw_dst="10.10.1.0/24",tp_dst=80 )))
 #*******
-      srcip_count_tmp[i]=None
       log.debug("Host %s blocked and removed from the list",i)
-  srcip_count=srcip_count_tmp
+      
+  if tmp_src_ip :
+    del srcip_count[tmp_src_ip]
+    tmp_src=None
+  
+  
+  
+    
 
   
 
@@ -110,39 +118,11 @@ def _handle_portstats_received (event):
 #  log.debug("PortStatsReceived from %s: %s", 
 #    dpidToStr(event.connection.dpid), stats)
     
-def handle_packetIn (self,event):
-  inport = event.port
-  packet = event.parsed
-  log.debug("source_ip=%s" %
-                  (packet.next.srcip))
-
-  if packet.type==ethernet.IP_TYPE:
-    ipv4_packet=event.parsed.find("ipv4")
-    src_ip=ipv4_packet.srcip
-  if not packet.parsed:
-    log.warning("%i ignoring unparsed packet", dpid)
-    return
-
- # if isinstance(packet.next, ipv4):
-#  log.info("%i IP %s => %s", dpid,
-#                packet.next.srcip,packet.next.dstip)
-#  log.info("installing flow for %s.%i -> %s.%i" %
-#                  (packet.src, event.port, packet.dst, port))
-#  log.debug("installing flow for %s.%i -> %s.%i" %
-#                  (packet.next.srcip, event.port, packet.dst, port))
-  
-
-
-
-
-  # attach handsers to listners
-#core.openflow.addListenerByName("Packet_in received", 
-#    handle_packetIn) 
 
 core.openflow.addListenerByName("FlowStatsReceived", 
     _handle_flowstats_received) 
-core.openflow.addListenerByName("PortStatsReceived", 
-    _handle_portstats_received) 
+#core.openflow.addListenerByName("PortStatsReceived",_handle_portstats_received) 
 
   # timer set to execute every five seconds
-Timer(1, _timer_func, recurring=True)
+Timer(.1, _timer_func, recurring=True)
+Timer(.5, _timer_display, recurring=True)
