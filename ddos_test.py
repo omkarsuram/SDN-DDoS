@@ -25,6 +25,7 @@ statistics handler contains a summary of web-only traffic.
 """
 
 # standard includes
+import sqlite3
 from pox.core import core
 from pox.lib.util import dpidToStr
 
@@ -36,6 +37,7 @@ import pox.lib.packet as pkt
 
 # include as part of the betta branch
 from pox.openflow.of_json import *
+import os
 
 log = core.getLogger()
 
@@ -44,10 +46,12 @@ log = core.getLogger()
 srcip_count={}
 srcip_record={}
 tmp_src_ip=None
-srcip_blocked=[]
+srcip_blocked={}
 rate_limit=100
 # handler for timer function that sends the requests to all the
 # switches connected to the controller.
+
+
 def _timer_func ():
   z1234=0
   for connection in core.openflow._connections.values():
@@ -62,8 +66,18 @@ def _timer_display():
     
     tmp_src_ip=None
   if srcip_count:
-    print srcip_count
+    os.system("clear")
+    print "Blocked IP: %s" %(srcip_blocked)
+    print " Packet count for active ip's"
+    for i in srcip_count:
+      print "%s:--> %s"%(i,srcip_count[i])
     srcip_count.clear()
+    
+
+    
+
+
+  
 #  log.debug("Sent %i flow/port stats request(s)", len(core.openflow._connections))
 
 # handler to display flow statistics received in JSON format
@@ -117,8 +131,11 @@ def send_packet(event,src_ip,web_packet):
   #*******
         log.debug("Host %s blocked and removed from the list",i)
     if tmp_src_ip :
-      srcip_blocked.append(tmp_src_ip)
+      srcip_blocked[tmp_src_ip]="Blocked"
+      print "packet-rate exceeded for %s. redirect the packets."%(tmp_src_ip)
+      print "Host %s blocked and removed from the list"%(tmp_src_ip)
       srcip_count[tmp_src_ip]="Blocked"
+      
       #print srcip_count[tmp_src_ip]
       
       tmp_src_ip=None      
@@ -140,5 +157,21 @@ core.openflow.addListenerByName("FlowStatsReceived",
 #core.openflow.addListenerByName("PortStatsReceived",_handle_portstats_received) 
 
   # timer set to execute every five seconds
-Timer(.1, _timer_func, recurring=True)
+conn = sqlite3.connect('src_ip.db')
+c = conn.cursor()
+
+  # Create table
+
+  # Insert a row of data
+c.execute("INSERT INTO stocks VALUES ('2006-01-05','BUY','RHAT',100,35.14)")
+
+  # Save (commit) the changes
+conn.commit()
+
+  # We can also close the connection if we are done with it.
+  # Just be sure any changes have been committed or they will be lost.
+conn.close()
+  
+Timer(.01, _timer_func, recurring=True)
 Timer(.5, _timer_display, recurring=True)
+
